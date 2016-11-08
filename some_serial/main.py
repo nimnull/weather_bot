@@ -40,14 +40,19 @@ async def main(loop, config):
     await create_serial_connection(loop, q, Output, device, baudrate=baudrate)
 
     while True:
-        message = await q.get()
-        print(message)
-        await telegram_bot.get_updates()
+        try:
+            message = q.get_nowait()
+            print(message)
+        except asyncio.QueueEmpty:
+            pass
+
+        loop.create_task(telegram_bot.get_updates())
         await asyncio.sleep(3)
 
 
 @click.command()
-@click.option('--config', '-c', help="Configuration path")
+@click.option('--config', '-c', default='config.yaml', type=click.Path(exists=True, readable=True),
+              help="Configuration path")
 def run(config):
     with open(config, 'rb') as fp:
         conf_data = load(fp.read(), Loader=Loader)

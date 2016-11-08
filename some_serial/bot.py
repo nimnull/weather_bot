@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import sys
 
@@ -11,8 +10,6 @@ import datetime
 log = logging.getLogger(__name__)
 log.addHandler(logging.StreamHandler(sys.stdout))
 log.setLevel(logging.DEBUG)
-BOT_TOKEN = "change me"
-
 
 
 class TelegramBot:
@@ -43,13 +40,18 @@ class TelegramBot:
             msg = "{error_code} | {description} ".format(**response)
             raise ValueError(msg)
 
-    async def send_message(self, chat, sender=None):
+    async def send_message(self, chat_id, reply_to=None, sender=None):
         payload = {
-            'chat_id': chat['id'],
-            'text': 'confirmed at {}'.format(datetime.datetime.now().isoformat('T'))
+            'chat_id': chat_id,
+            'text': 'confirmed at {}'.format(datetime.datetime.now().isoformat('T')),
         }
+
+        if reply_to:
+            payload['reply_to_message_id'] = reply_to
+
         resp = await self.session.post(self._get_uri('sendMessage'), data=payload)
         r_data = await self._raise_for_status(resp)
+
         try:
             result = self._raise_for_response(r_data)
             log.info("sent: %s", result)
@@ -60,29 +62,32 @@ class TelegramBot:
         pass
 
     async def get_updates(self):
+        print("tick")
         uri = self._get_uri('getUpdates')
         params = self.update_offset and {'offset': self.update_offset} or None
         resp = await self.session.get(uri, params=params)
 
         r_data = await self._raise_for_status(resp)
         try:
+            print("Received: %s" % r_data)
             result = self._raise_for_response(r_data)
             if len(result):
                 await self.on_update(result)
         except ValueError as ex:
             log.error("Failed to retrieve updates: %s", ex)
 
-    async def on_update(self, data):
-        last_update = max(map(lambda r: r['update_id'], data))
-        for update in data:
-            message = update.get('message')
+    async def on_update(self, updates_list):
+        last_update = max(map(lambda r: r['update_id'], updates_list))
+        for entry in updates_list:
+            message = entry.get('message')
             if message:
                 await self.on_message(message)
-                log.info("received: %s", message)
         self.update_offset = last_update + 1
 
     async def on_message(self, message):
-        await self.send_message(message['chat'], message.get('from'))
+        chat_id = message['chat']['id']
+        message_id = message['message_id']
+        await self.send_message(chat_id, message_id, message.get('from'))
         entities = message.get('entities')
 
 
