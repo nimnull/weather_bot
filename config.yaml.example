@@ -1,0 +1,5 @@
+telegram:
+  token: change me
+device:
+  dev: /dev/cu.BT_1-DevB
+  baudrate: 38400
